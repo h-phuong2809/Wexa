@@ -1,0 +1,775 @@
+openapi: 3.0.3
+info:
+  title: Forecast.Now Weather API
+  description: >
+    API backend cho Website Dự báo Thời tiết. Đóng vai trò proxy/tổng hợp dữ liệu
+    từ Open-Meteo / OpenWeatherMap, quản lý người dùng, địa điểm yêu thích,
+    cảnh báo và thông báo.
+  version: "1.0.0"
+servers:
+  - url: https://api.forecastnow.app/v1
+    description: Production
+  - url: https://staging-api.forecastnow.app/v1
+    description: Staging
+
+tags:
+  - name: Weather
+    description: Dữ liệu thời tiết công khai (Guest + Member)
+  - name: Locations
+    description: Tìm kiếm & quản lý địa điểm
+  - name: Auth
+    description: Đăng ký / đăng nhập
+  - name: Users
+    description: Hồ sơ & cấu hình cá nhân (Member)
+  - name: Notifications
+    description: Thông báo cảnh báo thời tiết (Member)
+  - name: Admin
+    description: Quản trị hệ thống (Admin)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    LocationIdParam:
+      name: locationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error_code:
+          type: string
+          example: LOCATION_NOT_FOUND
+        message:
+          type: string
+          example: "Không tìm thấy địa điểm."
+
+    Location:
+      type: object
+      properties:
+        location_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: "Hồ Chí Minh, Việt Nam"
+        country_code:
+          type: string
+          example: VN
+        latitude:
+          type: number
+          format: float
+        longitude:
+          type: number
+          format: float
+        timezone:
+          type: string
+          example: Asia/Ho_Chi_Minh
+        is_current:
+          type: boolean
+        is_saved:
+          type: boolean
+
+    WindData:
+      type: object
+      properties:
+        speed_kmh:
+          type: number
+        gust_kmh:
+          type: number
+        direction_deg:
+          type: integer
+        direction_label:
+          type: string
+          example: NE
+
+    WeatherCurrent:
+      type: object
+      properties:
+        location:
+          $ref: '#/components/schemas/Location'
+        temperature:
+          type: number
+        feels_like:
+          type: number
+        condition_code:
+          type: string
+        condition_desc:
+          type: string
+        humidity:
+          type: integer
+        uv_index:
+          type: number
+        visibility_km:
+          type: number
+        pressure_hpa:
+          type: number
+        wind:
+          $ref: '#/components/schemas/WindData'
+        fetched_at:
+          type: string
+          format: date-time
+
+    DailyForecastItem:
+      type: object
+      properties:
+        forecast_date:
+          type: string
+          format: date
+        temp_min:
+          type: number
+        temp_max:
+          type: number
+        condition_code:
+          type: string
+        precipitation_prob:
+          type: integer
+        precipitation_mm:
+          type: number
+
+    HourlyForecastItem:
+      type: object
+      properties:
+        datetime:
+          type: string
+          format: date-time
+        temp:
+          type: number
+        precipitation_mm:
+          type: number
+        wind_speed:
+          type: number
+        condition_code:
+          type: string
+
+    SunData:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        sunrise_time:
+          type: string
+          example: "05:42:00"
+        sunset_time:
+          type: string
+          example: "18:07:00"
+
+    MoonData:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        moon_phase:
+          type: string
+          example: waxing_gibbous
+        illumination_pct:
+          type: integer
+        moonrise_time:
+          type: string
+          nullable: true
+        moonset_time:
+          type: string
+          nullable: true
+
+    RainfallMapLayer:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        tile_layer_url:
+          type: string
+        layer_type:
+          type: string
+          enum: [radar, satellite]
+        intensity_level:
+          type: string
+
+    WeatherAlert:
+      type: object
+      properties:
+        alert_id:
+          type: string
+          format: uuid
+        alert_type:
+          type: string
+        severity:
+          type: string
+          enum: [info, warning, severe, extreme]
+        title:
+          type: string
+        description:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          type: string
+          enum: [detected, active, escalated, expired, resolved, archived]
+
+    Notification:
+      type: object
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [alert, reminder, system]
+        message:
+          type: string
+        status:
+          type: string
+          enum: [created, sent, read, dismissed]
+        created_at:
+          type: string
+          format: date-time
+
+    UserPreference:
+      type: object
+      properties:
+        unit_temp:
+          type: string
+          enum: [celsius, fahrenheit]
+        unit_wind:
+          type: string
+          enum: [kmh, mph]
+        language:
+          type: string
+          example: vi
+        theme:
+          type: string
+          enum: [light, dark, auto]
+        alert_opt_in:
+          type: boolean
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          example: 3600
+
+    ApiProvider:
+      type: object
+      properties:
+        provider_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        base_url:
+          type: string
+        rate_limit_per_min:
+          type: integer
+        priority:
+          type: integer
+        is_active:
+          type: boolean
+
+  responses:
+    NotFound:
+      description: Không tìm thấy tài nguyên
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Chưa xác thực hoặc token không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Không đủ quyền truy cập (xem rbac-matrix.md)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+paths:
+  # ---------------------------------------------------------------- WEATHER
+  /weather/current:
+    get:
+      tags: [Weather]
+      summary: Lấy thời tiết hiện tại theo tọa độ hoặc locationId
+      parameters:
+        - name: lat
+          in: query
+          schema: { type: number }
+        - name: lon
+          in: query
+          schema: { type: number }
+        - name: locationId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeatherCurrent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /weather/forecast/daily:
+    get:
+      tags: [Weather]
+      summary: Dự báo 10 ngày
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailyForecastItem'
+
+  /weather/forecast/hourly:
+    get:
+      tags: [Weather]
+      summary: Dự báo theo giờ của một ngày cụ thể
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HourlyForecastItem'
+
+  /weather/sun:
+    get:
+      tags: [Weather]
+      summary: Giờ mặt trời mọc/lặn
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SunData'
+
+  /weather/moon:
+    get:
+      tags: [Weather]
+      summary: Thông tin mặt trăng (pha, % chiếu sáng, giờ mọc/lặn)
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MoonData'
+
+  /weather/rainfall-map:
+    get:
+      tags: [Weather]
+      summary: Lớp bản đồ mưa/radar trực quan quanh 1 địa điểm
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RainfallMapLayer'
+
+  /weather/alerts:
+    get:
+      tags: [Weather]
+      summary: Danh sách cảnh báo thời tiết đang hiệu lực tại 1 khu vực
+      parameters:
+        - name: locationId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WeatherAlert'
+
+  # --------------------------------------------------------------- LOCATIONS
+  /locations/search:
+    get:
+      tags: [Locations]
+      summary: Tìm kiếm địa điểm theo tên (geocoding, autocomplete)
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+
+  /locations/saved:
+    get:
+      tags: [Locations]
+      summary: Danh sách địa điểm đã lưu của Member hiện tại
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Locations]
+      summary: Lưu một địa điểm vào danh sách yêu thích (giới hạn 10)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [latitude, longitude, name]
+              properties:
+                name: { type: string }
+                latitude: { type: number }
+                longitude: { type: number }
+      responses:
+        '201':
+          description: Đã lưu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '409':
+          description: Đã đạt giới hạn 10 địa điểm hoặc địa điểm đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /locations/saved/{locationId}:
+    delete:
+      tags: [Locations]
+      summary: Xóa một địa điểm khỏi danh sách yêu thích
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/LocationIdParam'
+      responses:
+        '204':
+          description: Đã xóa
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # -------------------------------------------------------------------- AUTH
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Đăng ký tài khoản Member mới
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Tạo thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email đã tồn tại
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Đăng nhập
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ------------------------------------------------------------------- USERS
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Thông tin hồ sơ người dùng hiện tại
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/preferences:
+    get:
+      tags: [Users]
+      summary: Lấy cấu hình cá nhân
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+    put:
+      tags: [Users]
+      summary: Cập nhật cấu hình cá nhân (đơn vị đo, ngôn ngữ, giao diện, nhận cảnh báo)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserPreference'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+
+  # ---------------------------------------------------------------- NOTIFY
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: Danh sách thông báo của Member hiện tại
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [created, sent, read, dismissed]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /notifications/{notificationId}/read:
+    post:
+      tags: [Notifications]
+      summary: Đánh dấu thông báo đã đọc
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ------------------------------------------------------------------- ADMIN
+  /admin/api-providers:
+    get:
+      tags: [Admin]
+      summary: Danh sách nhà cung cấp API (chỉ Admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiProvider'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin]
+      summary: Thêm nhà cung cấp API mới (chỉ Admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiProvider'
+      responses:
+        '201':
+          description: Đã tạo
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Danh sách người dùng (chỉ Admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, deleted]
+      responses:
+        '200':
+          description: OK
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{userId}/suspend:
+    post:
+      tags: [Admin]
+      summary: Tạm khóa tài khoản người dùng (chỉ Admin, ghi AUDIT_LOG)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/logs/api-requests:
+    get:
+      tags: [Admin]
+      summary: Nhật ký gọi API bên thứ 3 (chỉ Admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/logs/audit:
+    get:
+      tags: [Admin]
+      summary: Nhật ký hành động quản trị (chỉ Admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: OK
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/alerts:
+    post:
+      tags: [Admin]
+      summary: Tạo/cấu hình cảnh báo thời tiết thủ công (chỉ Admin)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeatherAlert'
+      responses:
+        '201':
+          description: Đã tạo
+        '403':
+          $ref: '#/components/responses/Forbidden'
